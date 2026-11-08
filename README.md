@@ -16,12 +16,26 @@ imzaları arayan, C++17 ile yazılmış bir süreç enjeksiyonu algılama **prot
 - Taranan bellekten gelen verinin terminale yazılmadan önce temizlenmesi (kaçış dizisi enjeksiyonuna karşı)
 - Platform bağımlılığı `#ifdef _WIN32` ile ayrıldı (`usleep` kaldırıldı); yalnızca MinGW-w64 ile doğrulandı
 
+## Web arayüzü (HTML rapor)
+
+Analiz sonucunu tarayıcıda açılabilen tek dosyalık bir rapora dönüştürebilirsiniz:
+
+```bash
+./build/guardian --html rapor.html
+```
+
+Oluşan `rapor.html` dosyasını tarayıcıda açın: durum özeti, sayaçlar, renkli bölge tablosu ve
+filtreler (Tümü / Yalnızca W+X / Doğrulananlar) içerir. Sunucu veya internet gerekmez; sayfa
+script ve dış kaynak kullanmaz (CSP ile kapalı), bellekten gelen içerik HTML kaçışından geçer.
+Açık/koyu temayı ve dar ekranları destekler. Veri hâlâ simülasyondur.
+
 ## Yapı
 
 | Dosya | Açıklama |
 |---|---|
 | `guardian_core.hpp` | Analiz ve raporlama mantığı (OS bağımlılığı yok) |
-| `guardian.cpp` | Demo programı (konsol hazırlığı, örnek veri) |
+| `guardian_html.hpp` | HTML rapor üreticisi (kaçışlı, scriptsiz) |
+| `guardian.cpp` | Demo programı (konsol hazırlığı, örnek veri, `--html`) |
 | `tests/test_guardian.cpp` | Birim testleri |
 | `CMakeLists.txt` | Derleme ve test tanımı |
 

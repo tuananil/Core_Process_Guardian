@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../guardian_core.hpp"
+#include "../guardian_html.hpp"
 
 using namespace guardian;
 
@@ -105,7 +106,56 @@ static void test_rapor_durumlari() {
     }
 }
 
+static void test_sayfa_durumu() {
+    CHECK(sayfa_durumu({1, "r-xp", "EVIL_SHELLCODE_EXEC"}) == Durum::Normal);
+    CHECK(sayfa_durumu({1, "rwxp", "jit"}) == Durum::Supheli);
+    CHECK(sayfa_durumu({1, "rwxp", "EVIL_SHELLCODE_EXEC"}) == Durum::Dogrulandi);
+    CHECK(sayfa_durumu({1, "??", "x"}) == Durum::Gecersiz);
+}
+
+static std::string html_uret(const std::vector<HafizaSayfasi>& ram) {
+    std::ostringstream os;
+    html_rapor_yaz(os, ram, analiz_et(ram));
+    return os.str();
+}
+
+static void test_html_kacis() {
+    CHECK(html_kacis("<a href=\"x\">&'") == "&lt;a href=&quot;x&quot;&gt;&amp;&#39;");
+    CHECK(html_kacis("duz") == "duz");
+}
+
+static void test_html_xss_ve_yapi() {
+    // Bellekten gelen kötü niyetli içerik HTML'e ham girmemeli (XSS).
+    const std::string xss = "<script>alert(1)</script><img src=x onerror=alert(2)> EVIL_SHELLCODE_EXEC";
+    const std::string h = html_uret({{0xdeadbeef, "rwxp", xss}, {0x1000, "r--p", "\"><b>x"}});
+    CHECK(h.find("<script>alert") == std::string::npos);
+    CHECK(h.find("<img src=x") == std::string::npos);
+    CHECK(h.find("&lt;script&gt;alert(1)&lt;/script&gt;") != std::string::npos);
+    CHECK(h.find("\"><b>x") == std::string::npos);
+    // Şablonun kendisi script içermemeli; CSP script'i kapatmalı.
+    CHECK(h.find("<script") == std::string::npos);
+    CHECK(h.find("default-src 'none'") != std::string::npos);
+    // İçerik: simülasyon uyarısı, adres, durum sınıfı.
+    CHECK(h.find("Simülasyon") != std::string::npos);
+    CHECK(h.find("0xdeadbeef") != std::string::npos);
+    CHECK(h.find("d-dogrulandi") != std::string::npos);
+    CHECK(h.find("d-normal") != std::string::npos);
+    CHECK(h.find("Tehlike") != std::string::npos);
+}
+
+static void test_html_ozet_durumlari() {
+    CHECK(html_uret({{1, "r-xp", "temiz"}}).find("ozet guvenli") != std::string::npos);
+    CHECK(html_uret({{1, "rwxp", "jit"}}).find("ozet supheli") != std::string::npos);
+    CHECK(html_uret({{1, "rwxp", "jit"}}).find("ozet guvenli") == std::string::npos);
+    CHECK(html_uret({{1, "??", "x"}}).find("ozet guvenli") == std::string::npos);  // fail-open yok
+    CHECK(html_uret({}).find("ozet guvenli") != std::string::npos);
+}
+
 int main() {
+    test_sayfa_durumu();
+    test_html_kacis();
+    test_html_xss_ve_yapi();
+    test_html_ozet_durumlari();
     test_izin_ayristirma();
     test_analiz_mantigi();
     test_temizleme();

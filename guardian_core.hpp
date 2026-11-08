@@ -79,18 +79,28 @@ inline std::string terminal_icin_temizle(std::string_view veri) {
     return cikti;
 }
 
+enum class Durum { Normal, Supheli, Dogrulandi, Gecersiz };
+
+// Tek bir bölgenin sınıflandırması (konsol ve HTML raporu aynı mantığı kullanır).
+inline Durum sayfa_durumu(const HafizaSayfasi& sayfa) {
+    if (!izin_gecerli_mi(sayfa.izinler)) return Durum::Gecersiz;  // fail-open olmasın: raporlanır
+    // Adli bilişim kuralı: hem yazılabilir hem çalıştırılabilir alan enjeksiyon riskidir.
+    if (!yazilabilir_ve_calistirilabilir_mi(sayfa.izinler)) return Durum::Normal;
+    return imza_iceriyor_mu(sayfa.ham_veri) ? Durum::Dogrulandi : Durum::Supheli;
+}
+
 inline AnalizSonucu analiz_et(const std::vector<HafizaSayfasi>& ram_haritasi) {
     AnalizSonucu sonuc;
     for (const auto& sayfa : ram_haritasi) {
-        if (!izin_gecerli_mi(sayfa.izinler)) {
-            ++sonuc.gecersiz_sayisi;  // sessizce atlamak (fail-open) yerine say ve raporla
+        const Durum d = sayfa_durumu(sayfa);
+        if (d == Durum::Gecersiz) {
+            ++sonuc.gecersiz_sayisi;
             continue;
         }
-        // Adli bilişim kuralı: hem yazılabilir hem çalıştırılabilir alan enjeksiyon riskidir.
-        if (!yazilabilir_ve_calistirilabilir_mi(sayfa.izinler)) continue;
+        if (d == Durum::Normal) continue;
 
         Bulgu b{sayfa.baslangic_adresi, sayfa.izinler, Ciddiyet::Supheli, {}};
-        if (imza_iceriyor_mu(sayfa.ham_veri)) {
+        if (d == Durum::Dogrulandi) {
             b.ciddiyet = Ciddiyet::Dogrulandi;
             b.veri_onizleme = terminal_icin_temizle(sayfa.ham_veri);
             ++sonuc.dogrulanan_sayisi;

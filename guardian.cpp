@@ -1,9 +1,12 @@
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "guardian_core.hpp"
+#include "guardian_html.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -50,8 +53,36 @@ unsigned long mevcut_pid() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
     using namespace guardian;
+
+    const std::vector<HafizaSayfasi> sanal_ram = {
+        {0x00400000, "r-xp", "SYS_INIT: Kernel space loaded successfully."},
+        {0x00651000, "r--p", "USER_DATA: Session active for user_demo"},
+        {0x7FFF0020, "rw-p", "CACHE: Normal temporary variables stored here."},
+        {0x7FFF5FBC, "rwxp", "ALERT! DANGEROUS CODE DETECTED: EVIL_SHELLCODE_EXEC"}  // Sızma noktası!
+    };
+
+    // Kullanım: guardian [--html <rapor.html>]
+    if (argc == 3 && std::string_view(argv[1]) == "--html") {
+        std::ofstream dosya(argv[2], std::ios::binary | std::ios::trunc);
+        if (!dosya) {
+            std::cerr << "Hata: '" << argv[2] << "' dosyası yazılamadı.\n";
+            return 1;
+        }
+        html_rapor_yaz(dosya, sanal_ram, analiz_et(sanal_ram));
+        dosya.flush();
+        if (!dosya) {
+            std::cerr << "Hata: '" << argv[2] << "' dosyasına yazma başarısız.\n";
+            return 1;
+        }
+        std::cout << "HTML rapor oluşturuldu: " << argv[2] << '\n';
+        return 0;
+    }
+    if (argc != 1) {
+        std::cerr << "Kullanım: " << argv[0] << " [--html <rapor.html>]\n";
+        return 2;
+    }
 
     // Renkler yalnızca gerçek bir terminale yazılıyorsa kullanılır; dosyaya/pipe'a
     // yönlendirilen çıktıya ANSI kaçış dizisi karışmaz.
@@ -67,13 +98,6 @@ int main() {
     std::cout << r.cyan << "\n[*] Bellek Haritası Çözümleniyor..." << r.reset << '\n';
     std::cout << r.sari << "[*] Güvenlik Analizi: 'rwx' (Yazılabilir ve Çalıştırılabilir) alanlar denetleniyor...\n"
               << r.reset << '\n';
-
-    const std::vector<HafizaSayfasi> sanal_ram = {
-        {0x00400000, "r-xp", "SYS_INIT: Kernel space loaded successfully."},
-        {0x00651000, "r--p", "USER_DATA: Session active for user_demo"},
-        {0x7FFF0020, "rw-p", "CACHE: Normal temporary variables stored here."},
-        {0x7FFF5FBC, "rwxp", "ALERT! DANGEROUS CODE DETECTED: EVIL_SHELLCODE_EXEC"}  // Sızma noktası!
-    };
 
     rapor_yaz(std::cout, analiz_et(sanal_ram), r);
     return 0;
